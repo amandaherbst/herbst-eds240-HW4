@@ -1,0 +1,25 @@
+---
+title: "HW2-exploration"
+author: "Amanda Herbst (she/her)"
+date: 2024-02-03
+toc: true
+format: html
+editor_options: 
+  chunk_output_type: console
+---
+
+Load packages
+```{r}
+library(tidyverse)
+```
+
+Read in Data
+
+```{r}
+# county AQI 
+aqi_2020 
+
+aqi_1980
+# wildfire dataset
+```
+
