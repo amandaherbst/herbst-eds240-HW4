@@ -8,18 +8,110 @@ editor_options:
   chunk_output_type: console
 ---
 
-Load packages
+## Load packages
+
 ```{r}
 library(tidyverse)
+library(sf)
+library(here)
 ```
 
-Read in Data
+## Read in Data
 
 ```{r}
 # county AQI 
-aqi_2020 
+aqi_2020 <- read_csv(here("data", "daily_aqi_by_county_2020.csv"))
 
-aqi_1980
+aqi_1980 <- read_csv(here("data", "daily_aqi_by_county_1980.csv"))
+
+# CA counties
+ca_counties <- st_read(here("data", "CA_Counties", "CA_Counties_TIGER2016.shp"))
+
 # wildfire dataset
+ca_fires <- read_csv(here("data", "California_Fire_Perimeters_(all).csv"))
+ca_fires_shape <- st_read(here("data", "California_Fire_Perimeters_(all)", "California_Fire_Perimeters__all_.shp"))
 ```
 
+## Cleaning/Wrangling
+
+```{r}
+# AQI data ----
+# join, clean_names, and filter to California
+aqi <- full_join(aqi_1980, aqi_2020) %>% 
+  janitor::clean_names() %>% 
+  filter(state_name == "California") %>% 
+  mutate(year = lubridate::year(date))
+
+# county data---
+# clean names 
+ca_counties_clean <- ca_counties %>% 
+  janitor::clean_names() %>% 
+  select(name, geometry)
+
+# fire data ----
+# clean names
+ca_fires_clean <- ca_fires_shape %>% janitor::clean_names() %>% 
+  # select necessary columns
+  select(year, fire_name, alarm_date, gis_acres, geometry) %>% 
+  # filter to years of interest: 2020 and 1980
+  filter(year %in% c(2020, 1980)) %>% 
+  mutate(year = as.numeric(year)) %>% 
+  group_by(year) %>% 
+  # find 5 largest fires based on acreage in 1980 and 2020
+  slice_max(order_by = gis_acres, n = 5)
+```
+
+add counties to fires
+```{r}
+ca_fires <- st_join(ca_fires_clean, ca_counties_clean) %>% 
+  rename(county_name = name)
+```
+
+join aqi with fire
+```{r}
+ca_fire_aqi <- full_join(aqi, ca_fires, relationship = "many-to-many") %>% 
+  drop_na() %>% 
+  mutate(year = as.factor(year)) %>% 
+  select(-state_name, -state_code, -county_code, -category, -defining_parameter, -defining_site, -number_of_sites_reporting)
+```
+
+## Exploratory Visualizations
+
+```{r}
+ca_fire_aqi %>% 
+  mutate(month_day = format(as.Date(date), "%m-%d")) %>%
+  group_by(year) %>% 
+  ggplot(aes(x = month_day, y = aqi, color = county_name)) +
+  geom_line()
+```
+
+Plot of AQI in counties affected by August Complex fire
+```{r}
+ca_fire_aqi %>% 
+  filter(fire_name == "AUGUST COMPLEX") %>% 
+  #mutate(month_day = format(as.Date(date), "%m-%d")) %>%
+  ggplot(aes(x = date, y = aqi, group = county_name, color = county_name)) +
+  geom_line() +
+  geom_vline(aes(xintercept = alarm_date)) +
+  geom_hline(yintercept = 150, color = "red")
+```
+
+```{r}
+ca_fire_aqi %>% 
+  filter(year == 2020) %>% 
+  #mutate(month_day = format(as.Date(date), "%m-%d")) %>%
+  ggplot(aes(x = date, y = aqi, group = fire_name, color = county_name)) +
+  geom_line() +
+  geom_vline(aes(xintercept = alarm_date)) +
+  geom_hline(yintercept = 150, color = "red") +
+  facet_wrap(~fire_name)
+```
+
+
+2020 was California's worst recorded wildfire season since the 17th century, with 9,917 fires burning around 4 million acres. 
+
+1. What have you learned about your data? Have any potentially interesting patterns emerged? **(5-8 sentences)**
+
+2. In HW #1, you outlined some questions that you wanted to answer using these data. Have you made any strides towards answering those questions? If yes, how so? If no, what next steps do you need to take (e.g. I need to create X plot type, I still need to track down Y data, I need to restructure existing data so that you can visualize it in Z ways, etc.)? **(8-12 sentences)**
+
+3. What challenges do you foresee encountering with your data? These can be data wrangling and / or visualization challenges. **(4-6 sentences)**
