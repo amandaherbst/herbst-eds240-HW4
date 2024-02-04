@@ -4,6 +4,9 @@
 # DS_store
 .DS_Store
 
+# html files
+HW2-exploration_files/
+
 # History files
 .Rhistory
 .Rapp.history

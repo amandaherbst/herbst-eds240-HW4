@@ -7,10 +7,13 @@ format: html
 editor_options: 
   chunk_output_type: console
 ---
+# California Fires and Air Quality
+
+2020 was California's worst recorded wildfire season since the 17th century, with 9,917 fires burning around 4 million acres.
 
 ## Load packages
 
-```{r}
+```{r, message=FALSE}
 library(tidyverse)
 library(sf)
 library(here)
@@ -18,100 +21,128 @@ library(here)
 
 ## Read in Data
 
-```{r}
+```{r, message=FALSE}
 # county AQI 
 aqi_2020 <- read_csv(here("data", "daily_aqi_by_county_2020.csv"))
 
 aqi_1980 <- read_csv(here("data", "daily_aqi_by_county_1980.csv"))
 
 # CA counties
-ca_counties <- st_read(here("data", "CA_Counties", "CA_Counties_TIGER2016.shp"))
+ca_counties <- st_read(here("data", "CA_Counties", "CA_Counties_TIGER2016.shp"),
+                       quiet = TRUE)
 
 # wildfire dataset
-ca_fires <- read_csv(here("data", "California_Fire_Perimeters_(all).csv"))
-ca_fires_shape <- st_read(here("data", "California_Fire_Perimeters_(all)", "California_Fire_Perimeters__all_.shp"))
+ca_fires_shape <- st_read(here("data", "California_Fire_Perimeters_(all)", "California_Fire_Perimeters__all_.shp"), 
+                          quiet = TRUE)
 ```
 
 ## Cleaning/Wrangling
 
-```{r}
+```{r, message=FALSE}
 # AQI data ----
+
 # join, clean_names, and filter to California
 aqi <- full_join(aqi_1980, aqi_2020) %>% 
   janitor::clean_names() %>% 
   filter(state_name == "California") %>% 
   mutate(year = lubridate::year(date))
 
-# county data---
+# county data ---
 # clean names 
 ca_counties_clean <- ca_counties %>% 
   janitor::clean_names() %>% 
+  # select relevant columns
   select(name, geometry)
 
 # fire data ----
 # clean names
 ca_fires_clean <- ca_fires_shape %>% janitor::clean_names() %>% 
   # select necessary columns
-  select(year, fire_name, alarm_date, gis_acres, geometry) %>% 
+  select(year, fire_name, alarm_date, cont_date, gis_acres, geometry) %>% 
   # filter to years of interest: 2020 and 1980
   filter(year %in% c(2020, 1980)) %>% 
+  # convert year from character to numeric
   mutate(year = as.numeric(year)) %>% 
   group_by(year) %>% 
   # find 5 largest fires based on acreage in 1980 and 2020
   slice_max(order_by = gis_acres, n = 5)
 ```
 
-add counties to fires
-```{r}
-ca_fires <- st_join(ca_fires_clean, ca_counties_clean) %>% 
+### Add counties to fire data
+The fire data is not associated with any county data so we can add county names by finding the counties where fire perimeter geometries overlap with county geometries.
+```{r, message=FALSE}
+ca_county_fires <- st_join(ca_fires_clean, ca_counties_clean) %>% 
   rename(county_name = name)
 ```
 
-join aqi with fire
-```{r}
-ca_fire_aqi <- full_join(aqi, ca_fires, relationship = "many-to-many") %>% 
-  drop_na() %>% 
+### Join aqi with fire data 
+Join into one dataset for easier plotting
+```{r, message=FALSE}
+ca_fire_aqi <- full_join(aqi, ca_county_fires, relationship = "many-to-many") %>% 
+  # drop NAs which are created from counties that were not associated with the top five fires
+  filter(fire_name != is.na(fire_name)) %>% 
+  # convert year from numeric to a factor
   mutate(year = as.factor(year)) %>% 
+  # remove unececessary columns
   select(-state_name, -state_code, -county_code, -category, -defining_parameter, -defining_site, -number_of_sites_reporting)
 ```
 
 ## Exploratory Visualizations
 
-```{r}
-ca_fire_aqi %>% 
-  mutate(month_day = format(as.Date(date), "%m-%d")) %>%
-  group_by(year) %>% 
-  ggplot(aes(x = month_day, y = aqi, color = county_name)) +
-  geom_line()
-```
+```{r, message = FALSE}
+# plot 1 ----
 
-Plot of AQI in counties affected by August Complex fire
-```{r}
 ca_fire_aqi %>% 
-  filter(fire_name == "AUGUST COMPLEX") %>% 
-  #mutate(month_day = format(as.Date(date), "%m-%d")) %>%
-  ggplot(aes(x = date, y = aqi, group = county_name, color = county_name)) +
-  geom_line() +
-  geom_vline(aes(xintercept = alarm_date)) +
-  geom_hline(yintercept = 150, color = "red")
-```
+  ggplot(aes(x = fire_name, y = gis_acres)) +
+  geom_col(aes(fill = year)) +
+  coord_flip()
 
-```{r}
+
+# plot 2 ----
+
 ca_fire_aqi %>% 
   filter(year == 2020) %>% 
-  #mutate(month_day = format(as.Date(date), "%m-%d")) %>%
+  mutate(month = lubridate::month(date)) %>% 
+  group_by(month, county_name) %>% 
+  summarize(monthly_aqi = mean(aqi)) %>% 
+  ggplot(aes(x = month, y = monthly_aqi, color = county_name)) +
+  geom_line()
+
+
+# plot 3 ----
+# line plots of AQI for 5 worst fires of 2020
+ca_fire_aqi %>% 
+  # select year 2020
+  filter(year == 2020) %>% 
+  # set up plot of AQI over the year of 2020, separating lines by county and grouping by the fire
   ggplot(aes(x = date, y = aqi, group = fire_name, color = county_name)) +
+  # add lines
   geom_line() +
+  # add a vertical line at the date the fire started
   geom_vline(aes(xintercept = alarm_date)) +
+  # add a vertical line at the date the fire was contained
+  geom_vline(aes(xintercept = cont_date)) +
+  # add a red line at an AQI of 150 where the air is deemed "unhealthy"
   geom_hline(yintercept = 150, color = "red") +
-  facet_wrap(~fire_name)
+  # facet wrap so there are five plots, one for each fire
+  facet_wrap(~fire_name) +
+  # update labels and titles
+  labs(title = "Impact of 5 largest CA Fires of 2020 on AQI of surrounding counties",
+       y = "Air Quality Index (AQI)",
+       x = "",
+       color = "County",
+       caption = 'Black lines indicate start and containment date of fires, red line indicates an AQI level of "Unhealthy."')
 ```
 
-
-2020 was California's worst recorded wildfire season since the 17th century, with 9,917 fires burning around 4 million acres. 
 
 1. What have you learned about your data? Have any potentially interesting patterns emerged? **(5-8 sentences)**
 
+The 5 largest fires of 2020 burned drastically larger amounts of acres than the largest fires in 1980. When looking at the fires in 2020, all five started within a month of each other. After doing a little research, it appears that the conditions in northern California in August 2020 were particularly prone to fires which contributed to it being the worst recorded year of California fires. The Creek fire started a few weeks after the other fires, but the AQI starts increasing prior to that. Since the Creek fire burned in counties nearby the other large fires, it appears that Fresno and Madera counties' air quality was already being affected. 
+
 2. In HW #1, you outlined some questions that you wanted to answer using these data. Have you made any strides towards answering those questions? If yes, how so? If no, what next steps do you need to take (e.g. I need to create X plot type, I still need to track down Y data, I need to restructure existing data so that you can visualize it in Z ways, etc.)? **(8-12 sentences)**
 
+I have made strides towards answering my questions in terms of how the fires affected the counties they burned in. By plotting the daily air quality in each county and indicating with a vertical line where the fire started, you can see that in most cases, the start of the fire is followed immediately by an increase in AQI. However, I need to do more towards answering how the affect of fires on AQI has changed over time. In the simple bar plot I made, we can clearly see that the acres burned in 2020 by the top 5 fires is much, much larger than the acres burned by the top 5 fires in 1980. However, I need to incorporate AQI into this time analysis. In order to do that I need to decide if I am going to compare the same counties over the years, or compare the largest fires of each year. Either way, I will need to download more AQI data because each file contains only one year of data. Currently, the AQI data is daily, however, I may need to take averages for easier digestion and takeaways. This may require updating my wrangling where I take the averages before I join the AQI with the fires. 
+
 3. What challenges do you foresee encountering with your data? These can be data wrangling and / or visualization challenges. **(4-6 sentences)**
+
+I think my main challenge is that I might have too much data which can easily lead to decision paralysis. I am going to need to focus on a specific question, and make myself draw out visuals before attempting to code them. This way, I will hopefully avoid getting caught up in all the possibilities. As far as wrangling goes, joining the fires with the AQI data was a little tricky, but that should be solved. What may prove to be a challenge in the future, though, will be if I need to pare down AQI to a rolling average or monthly averages.
