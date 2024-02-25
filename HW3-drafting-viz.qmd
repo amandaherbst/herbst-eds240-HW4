@@ -1,0 +1,295 @@
+---
+title: "HW 3: Drafting data viz for final HW4"
+author: "Amanda Herbst (she/her)"
+date: "2024-02-25"
+format:
+  html:
+    embed-resources: true
+---
+
+**Which option do you plan to pursue?**
+
+I am planning to pursue option 2, an infographic.
+
+**Restate your question(s). Has this changed at all since HW1? If yes, how so?**
+
+Has California wildfire activity changed over the past 40 years? Sub questions:
+- Has the size of the largest fire each year changed?
+- Has the total acres burned each month changed?
+- How have California counties been impacted by wildfires the past 40 years?
+
+This has changed slightly from HW1 because I am no longer incorporating air quality data (it simply became to be too much data), but I am still interested in how wildfire activity has changed (or not) the past 40 years.
+
+**Explain which variables from your data set(s) you will use to answer your question(s).**
+
+I will be using the year of each fire, the fire name, the month of the start date of each fire, the total acres burned of each fire, and the name of the counties impacted by each fire.
+
+**In HW2, you should have created some exploratory data viz to better understand your data. You may already have some ideas of how you plan to formally visualize your data, but it's incredibly helpful to look at visualizations by other creators for inspiration. Find at least two data visualizations that you could (potentially) borrow / adapt pieces from. Link to them or download and embed them into your .qmd file, and explain which elements you might borrow (e.g. the graphic form, legend design, layout, etc.).**
+
+![horror_movies](images/horror_movies.png)
+
+The sort-of radar plot that looks an eclipse has intrigued me and the colors remind me of fire, so I want to attempt a similar plot where instead of number of horror movies released each month, I will plot number of acres burned by wildfires each month. I'm not planning on using a black background, so it will hopefully not look like an eclipse, but a white background with the yellow may be tricky, so I will have to experiment.
+
+![](images/ca_map.png)
+
+At first this image just stood out to me because of the California map since I am working with California fire and have been thinking about incorporating a map of fires potentially. But also, I really like the design of this visualization because the background and map color combined with the title font creates this "retro" look. The simplicity is also a nice touch.
+
+**Hand-draw your anticipated three visualizations (option 1) or infographic (option 2). Take a photo of your drawing and embed it in your rendered .qmd file -- note that these are not exploratory visualizations, but rather your plan for your final visualizations that you will eventually polish and submit with HW4.**
+
+![](images/infographic_drawing.png)
+
+**Mock up your visualizations using code. We understand that you will continue to iterate on these into HW #4 (particularly after receiving feedback), but by the end of HW #3, you should:**
+
+-   have your data plotted (if you're experimenting with an advanced graphic form(s) that were not explicitly covered in class, we understand that this may take some more time to build; you should have as much put together as possible)
+-   use appropriate strategies to highlight / focus attention on a clear message
+-   include appropriate text such as titles, captions, axis labels
+-   experiment with colors and typefaces / fonts
+-   create a presentable / aesthetically-pleasing theme (e.g. (re)move gridlines / legends as appropriate, adjust font sizes, etc.)
+
+## Load libraries
+```{r, message = FALSE}
+library(tidyverse)
+library(sf)
+library(here)
+library(lubridate)
+```
+
+## Read in data
+```{r}
+# CA counties
+ca_counties <- st_read(here("data", "CA_Counties", "CA_Counties_TIGER2016.shp"),
+                       quiet = TRUE)
+
+# wildfire dataset
+ca_fires_shape <- st_read(here("data", "California_Fire_Perimeters_(all)", "California_Fire_Perimeters__all_.shp"), 
+                          quiet = TRUE)
+```
+
+## Clean data
+```{r}
+# county data ---
+# clean names 
+ca_counties_clean <- ca_counties %>% 
+  janitor::clean_names() %>% 
+  # select relevant columns
+  select(name, geometry)
+
+# fire data ----
+# clean names
+ca_fires_clean <- ca_fires_shape %>% janitor::clean_names() %>% 
+  # select necessary columns
+  select(year, fire_name, alarm_date, cont_date, gis_acres, geometry) 
+```
+
+## Spatially join data to find what counties were impacted by what fires
+```{r}
+ca_county_fires <- st_join(ca_fires_clean, ca_counties_clean) %>% 
+  rename(county_name = name)
+```
+
+
+## Plot 1: Largest fires 1980 - 2022
+```{r}
+# select largest fires each year
+ca_largest_fires <- ca_fires_clean %>% 
+  # select years 1980-2022
+  filter(year %in% (1980:2022)) %>% 
+  group_by(year) %>% 
+  # select largest (by acres) for each year
+  slice_max(order_by = gis_acres, n = 1)
+
+# create plot
+ggplot(data = ca_largest_fires) +
+  # add horizontal line at the average size of the largest fire from 1908-2022
+  geom_hline(yintercept = mean(ca_largest_fires$gis_acres),
+             color = "#998888",
+             linetype = "dashed") +
+  # add columns indicating how large each fire was
+  geom_col(aes(x = year, y = gis_acres), fill = "#B03424") +
+  labs(y = "Total Acres Burned",
+       x = "",
+       title = "Largest Recorded California Wildfires Each Year (1980-2022)") +
+  # choose x axis labels
+  scale_x_discrete(breaks = c(1980, 1985, 1990, 1995, 2000, 2005, 2010, 2015, 2020)) +
+  # add commas to large numbers on y-axis
+  scale_y_continuous(labels = scales::label_comma()) +
+  # add annotation to label the average line
+  annotate(
+    geom = "text",
+    # coord for text to live
+    x = 3.5, y = 235000,
+    label = "Size of average largest fire\nin the last 40 years",
+    size = 4,
+    color = "#998888",
+    # so it doesn't run off plot space
+    hjust = "inward"
+  ) +
+  # add arrow from annotation to average line
+  annotate(
+    geom = "curve",
+    x = 11.5, xend = 14,
+    y = 235000, yend = 160000,
+    curvature = -0.15,
+    arrow = arrow(length = unit(0.3, "cm")),
+    color = "#998888"
+  ) +
+  # label Biscuit Fire
+  annotate(
+    geom = "text",
+    x = 18, y = 500000,
+    label = "Biscuit Fire\n(501,082 acres)",
+    color = "#B03424",
+    size = 4
+  ) +
+  # add arrow to Biscuit Fire annotation
+  annotate(
+    geom = "curve",
+    x = 18, xend = 22,
+    y = 440000, yend = 375000,
+    curvature = 0.1,
+    arrow = arrow(length = unit(0.3, "cm")),
+    color = "#B03424"
+  ) +
+  # label August Complex Fire
+  annotate(
+    geom = "text",
+    x = 35, y = 800000,
+    label= "August Complex Fire\n(1,032,699 acres)",
+    color = "#B03424",
+    size = 4
+  ) +
+  # add arrow to August Complex Fire annotation
+   annotate(
+    geom = "curve",
+    x = 36, xend = 40,
+    y = 750000, yend = 700000,
+    curvature = 0.5,
+    arrow = arrow(length = unit(0.3, "cm")),
+    color = "#B03424"
+  ) +
+  # label Dixie Fire
+  annotate(
+    geom = "text",
+    x = 36, y = 1000000,
+    label= "Dixie Fire\n(963,405 acres)",
+    color = "#B03424",
+    size = 4
+  ) +
+  # add arrow to Dixie Fire annotation
+  annotate(
+    geom = "curve",
+    x = 38.5, xend = 42,
+    y = 1050000, yend = 964000,
+    curvature = -0.7,
+    arrow = arrow(length = unit(0.3, "cm")),
+    color = "#B03424"
+  ) +
+  theme_bw() +
+  theme(panel.grid.major.x = element_blank(),
+        title = element_text(size = 12,face = "bold"))
+
+# ggsave("herbst-week7-plot.png", plot = last_plot(),
+#        height = 7, width = 10)
+```
+
+## Plot 2: Acres burned radar plot
+
+```{r}
+# create table with total acres burned each month from 1980-2022
+calendar <- ca_fires_clean %>% 
+  # drop geometries
+  st_drop_geometry() %>% 
+  # convert year to date
+  mutate(year = as.Date(year, format = "%Y")) %>% 
+  mutate(year = year(year)) %>%
+  # select 1980-2022
+  filter(year %in% c(1980:2022)) %>% 
+  # grab month out of fire alarm date
+  mutate(month = month(alarm_date)) %>%  
+  group_by(year, month) %>%  
+  # calculate total acres burned each month of each year
+  summarise(monthly_total = sum(gis_acres)) %>%  
+  ungroup()
+
+# duplicate january for the circular plot
+month13 <- calendar %>%  
+  filter(month == 1) %>%  
+  mutate(year = (year - 1),
+         month = 13)
+
+# designate where month labels will go
+dates_axis <- tibble(x = seq(1,12,1),
+                     y = c(rep(2900000,12)),
+                     mth = lubridate::month(seq(1,12,1), abbr=TRUE, label = TRUE))
+
+# create plot
+monthly <- calendar %>%   
+  bind_rows(month13) %>% 
+  bind_rows(month13) %>%   # https://stackoverflow.com/questions/66821598/why-is-ggplot-geom-ribbon-area-failing-with-facets-coord-polar-with-specific
+  arrange(desc(year)) %>% 
+  ggplot(aes(month, monthly_total, group = year, fill = year, alpha = 2022-year))+
+  # area plot of total acres burned monthly
+  geom_area(position="identity", alpha = 0.1) +
+  # outline area plot
+  geom_line(aes(color = year), linewidth = 0.1) +
+  # add month labels
+  geom_text(data=dates_axis, aes(x = x, y = y, label = mth), color ="#B03424", inherit.aes = FALSE, size = 4) +
+  # polar coordinates for circle
+  coord_polar(start = pi) +
+  # choose color gradient
+  scale_fill_gradient(low = "#FFE070", high = "#B03424")+
+  scale_color_gradient(low = "#FFE070", high = "#B03424")+
+  scale_y_continuous(limits = c(0,2900000), expand = expansion(mult = c(0.3, 0))) +
+  scale_x_continuous(breaks = seq(1,12,1), limits = c(1,13), labels = lubridate::month(seq(1,12,1), abbr=TRUE, label = TRUE))+
+  # remove axes, etc.
+  theme_void()+
+  guides(color = "none", fill = "none", alpha = "none") +
+  labs(title = "Monthly acres burned by wildfires (1980-2022)")
+
+monthly
+# log scale the color/fill gradient?
+# only fire season months?
+```
+
+
+
+## Plot 3: 
+
+```{r}
+# count number of fires occurring in each county 1980-2022
+county_counts <- ca_county_fires %>% 
+  st_drop_geometry() %>% 
+  filter(year %in% c(1980:2022)) %>% 
+  group_by(county_name) %>% 
+  summarize(sum = n()) %>% 
+  rename(name = county_name)
+
+# add fire counts to county dataset
+ca_counties_counts <- full_join(ca_counties_clean, county_counts)
+
+# create plot where counties are colored by number of fires
+ggplot() +
+  geom_sf(data = ca_counties_counts, 
+          aes(fill = sum),
+          color = "#998888") +
+  scale_fill_gradient(low = "#FFE070", high = "#B03424") +
+  labs(title = "Total wildfires burned in each CA county 1980 - 2022",
+       fill = "Total # of fires") +
+  theme_void() +
+  theme(legend.position = c(0.67, 0.78))
+```
+
+
+**Answer the following questions:**
+
+1.  What challenges did you encounter or anticipate encountering as you continue to build / iterate on your visualizations in R?
+
+**A challenge I have been dealing with since the beginning is narrowing my focus and avoiding decision paralysis. I originally wanted to do visualizations that included air quality but that quickly became too much data and in order to avoid overly complicated plots, I decided to focus just on the fire data set (adding in county information). Still, I have been struggling with exactly how I want to answer: Has California wildfire activity changed over the past 40 years? I've been really excited to make a radar plot similar to the horror movies visualization, but now that I have created it, it's not exactly showing what I would like. I'm thinking about narrowing down to just the fire season months so that we could hopefully see any trends better. Right now, since August has such a large "petal" it is impossible to see any yearly trends. I may need to change the gradient colors as well. Additionally, I'm encountering difficulty with what exactly I want to map. Currently I have total number of fires in each county but that doesn't really show any changes over time. I also have fire outlines in my dataset which would be interesting to incorporate, but once again would be hard to show an over time factor.**
+
+2.  What ggplot extension tools / packages do you need to use to build your visualizations? Are there any that we haven't covered in class that you'll be learning how to use for your visualizations?
+
+**So far, the only packages outside of tidyverse and ggplot that I have needed are lubridate to deal with dates and sf to deal with the spatial aspect of my county and fire data. I also used scales for axis labeling. I don't anticipate needing any other extension tools or packages at this time, but am rpepared to use more if needed. I considered trying to use plotly for an interactive map, but that wouldn't translate to a printed out infographic so I decided against.**
+
+3.  What feedback do you need from the instructional team and / or your peers to ensure that your intended message is clear?
+
+**Am I answering my intended questions and is there a better way to do so? As I mentioned above, I have so many ideas and am having trouble pinpointing the best ones for my questions.**
