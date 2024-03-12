@@ -10,6 +10,7 @@ library(sf)
 library(here)
 library(lubridate)
 library(gghighlight)
+library(showtext)
 ```
 
 ## Read in data
@@ -78,7 +79,7 @@ ca_largest_fires <- ca_fires_clean %>%
 red <- "#FE4A49"
 
 # create plot
-ggplot(data = ca_largest_fires) +
+largest_fires <- ggplot(data = ca_largest_fires) +
   # add horizontal line at the average size of the largest fire from 1908-2022
   geom_hline(yintercept = mean(ca_largest_fires$gis_acres),
              color = "white",
@@ -102,7 +103,7 @@ ggplot(data = ca_largest_fires) +
     # coord for text to live
     x = 1, y = 280000,
     label = "Size of average largest fire in the last 40 years",
-    size = 5,
+    size = 12,
     family = "Quicksand",
     color = "white",
     # so it doesn't run off plot space
@@ -121,10 +122,10 @@ ggplot(data = ca_largest_fires) +
   # label Ranch Fire
   annotate(
     geom = "text",
-    x = 30, y = 430000,
-    label = "Ranch Fire\n(410,203 acres)",
+    x = 27, y = 445000,
+    label = "Ranch Fire (410,203 acres)",
     color = red,
-    size = 5,
+    size = 12,
     family = "Quicksand"
   ) +
   # add arrow to Ranch Fire annotation
@@ -140,10 +141,10 @@ ggplot(data = ca_largest_fires) +
   # label August Complex Fire
   annotate(
     geom = "text",
-    x = 35, y = 800000,
-    label= "August Complex Fire\n(1,032,699 acres)",
+    x = 30, y = 800000,
+    label= "August Complex Fire (1,032,699 acres)",
     color = red,
-    size = 5,
+    size = 12,
     family = "Quicksand"
   ) +
   # add arrow to August Complex Fire annotation
@@ -159,10 +160,10 @@ ggplot(data = ca_largest_fires) +
   # label Dixie Fire
   annotate(
     geom = "text",
-    x = 36, y = 1000000,
-    label= "Dixie Fire\n(963,405 acres)",
+    x = 33, y = 1050000,
+    label= "Dixie Fire (963,405 acres)",
     color = red,
-    size = 5,
+    size = 12,
     family = "Quicksand"
   ) +
   # add arrow to Dixie Fire annotation
@@ -179,22 +180,21 @@ ggplot(data = ca_largest_fires) +
   theme(panel.grid.major.x = element_blank(),
         panel.grid.minor.y = element_blank(),
         panel.grid.major.y = element_line(linewidth = 0.25),
-        plot.title = element_text(size = 18,face = "bold", 
+        plot.title = element_text(size = 48,face = "bold", 
                                   margin = margin(t = 0, r = 0, b = 0.25, l = 0, unit= "cm"),
                                   hjust = 0),
-        plot.subtitle = element_text(size = 15,
+        plot.subtitle = element_text(size = 36,
                                      hjust = 0),
-        plot.background = element_rect(fill = "black"),
+        plot.background = element_rect(fill = "black",
+                                       color = "black"),
         panel.background = element_rect(fill = "black"),
-        panel.border = element_blank(),
         text = element_text(color = "white", family = "Quicksand"),
-        axis.title = element_text(size = 14),
-        axis.text = element_text(color = "white", size = 12),
+        axis.title = element_text(size = 36),
+        axis.text = element_text(color = "white", size = 32),
         axis.ticks.x = element_line(color = "white"),
         axis.line.x = element_line(color = "white"))
 
-ggsave("largest_fires.png", plot = last_plot(),
-       width = 12, height = 8)
+ggsave("largest_fires.png", plot = largest_fires)
 ```
 
 # plot 2: california map of change in number of fires
@@ -252,10 +252,10 @@ map_change <- ggplot() +
   theme_void() +
   guides(fill = guide_colorbar(barwidth = 20, barheight = 0.75)) +
   theme(legend.position = "bottom", # c(0.67, 0.78)
-        plot.title = element_text(family = "Quicksand", face = "bold", size = 18,
+        plot.title = element_text(family = "Quicksand", face = "bold", size = 48,
                                    margin = margin(t = 0.25, r = 0, b = 0.25, l = 0, unit = "cm"),
                                   hjust = 0.5),
-        plot.subtitle = element_text(family = "Quicksand", size = 15, hjust = 0.5),
+        plot.subtitle = element_text(family = "Quicksand", size = 36, hjust = 0.5),
         plot.background = element_rect(fill = "black"),
         legend.title = element_text(color = "white"),
         legend.text = element_text(color = "white", family = "Quicksand", size = 12),
@@ -294,7 +294,7 @@ month13 <- calendar %>%
 
 # designate where month labels will go
 dates_axis <- tibble(x = seq(1,12,1),
-                     y = c(rep(3000000,12)),
+                     y = c(rep(2000000,7), 3000000, rep(2000000, 4)),
                      mth = lubridate::month(seq(1,12,1), abbr=TRUE, label = TRUE))
 
 # create plot
@@ -304,41 +304,49 @@ monthly <- calendar %>%
   arrange(desc(year)) %>% 
   ggplot(aes(month, monthly_total, group = year, fill = year, alpha = 2040-year))+
   # area plot of total acres burned monthly
-  geom_area(position="identity", alpha = 0.1) +
+  geom_area(position="identity", alpha = 0.2) +
   # outline area plot
   geom_line(aes(color = year), linewidth = 0.1, alpha = 1) +
   # add month labels
-  geom_text(data=dates_axis, aes(x = x, y = y, label = mth), color ="white", inherit.aes = FALSE, size = 4) +
+  geom_text(data=dates_axis, aes(x = x, y = y, label = mth), color ="white", inherit.aes = FALSE, size = 12) +
   # polar coordinates for circle
   coord_polar(start = pi) +
   # choose color gradient
   scale_fill_gradient(low = "yellow", high = "#FE4A49")+
   scale_color_gradient(low = "yellow", high = "#FE4A49")+
-  scale_y_continuous(limits = c(0,3000000), expand = expansion(mult = c(0.3, 0))) +
+  scale_y_continuous(limits = c(0,3000000), 
+                     expand = expansion(mult = c(0.3, 0))
+                     ) +
   scale_x_continuous(breaks = seq(1,12,1), limits = c(1,13), labels = lubridate::month(seq(1,12,1), abbr=TRUE, label = TRUE))+
   # remove axes, etc.
   theme_void()+
   guides(color = "none", alpha = "none",
-         fill = guide_colorbar(barwidth = 25, barheight = 0.75)) +
+         fill = guide_colorbar(barwidth = 16, barheight = 0.2)) +
   labs(title = "Monthly acres burned by wildfires (1980-2022)",
        fill = "") +
   theme(legend.direction = "horizontal",
         legend.position = "top",
         text = element_text(color = "white", family = "Quicksand"),
-       plot.title = element_text(face = "bold", hjust = 0.5,
+       plot.title = element_text(size = 38,
+                                 face = "bold", 
+                                 hjust = 0.5,
                                  margin = margin(t = 0.25, r = 0, b = 0.5, l = 0, unit = "cm")),
+       legend.text = element_text(size = 22),
+       legend.box.margin = margin(t = 0, r = 0, b = -1, l = 0, unit = "cm"),
         panel.background = element_rect(fill = "black"),
-        plot.background = element_rect(fill = "black")) +
+        plot.background = element_rect(fill = "black"),
+       plot.margin = margin(unit(c(0, 0, 0, 0), "cm"))) +
   annotate(
     geom = "text",
-    x = 8, y = 2000000,
-    label= "2.9 mil acres\n(Aug 2020)",
+    x = 8.65, y = 2900000,
+    label= "2.9 mil acres (Aug 2020)",
     color = red,
-    size = 2.5, family = "Quicksand")
+    size = 10, family = "Quicksand",
+    face = "bold")
 monthly
 
 ggsave("sun_plot.png", plot = monthly,
-       height = 8, width = 7.09)
+       height = 4, width = 4)
 
 ```
 
