@@ -1,0 +1,344 @@
+---
+title: "Final plots for infographic"
+author: "Amanda Herbst (she/her)"
+---
+
+## Load libraries
+```{r, message = FALSE}
+library(tidyverse)
+library(sf)
+library(here)
+library(lubridate)
+library(gghighlight)
+```
+
+## Read in data
+```{r, message=FALSE}
+# CA counties
+ca_counties <- st_read(here("data", "CA_Counties", "CA_Counties_TIGER2016.shp"),
+                       quiet = TRUE)
+
+# wildfire dataset
+ca_fires_shape <- st_read(here("data", "California_Fire_Perimeters_(all)", "California_Fire_Perimeters__all_.shp"), 
+                          quiet = TRUE)
+```
+
+## Clean data
+```{r, message=FALSE}
+# county data ---
+# clean names 
+ca_counties_clean <- ca_counties %>% 
+  janitor::clean_names() %>% 
+  # select relevant columns
+  select(name, geometry)
+
+# fire data ----
+# clean names
+ca_fires_clean <- ca_fires_shape %>% janitor::clean_names() %>% 
+  # select necessary columns
+  select(year, fire_name, alarm_date, cont_date, gis_acres, geometry) 
+```
+
+## Spatially join data to find what counties were impacted by what fires
+```{r, message=FALSE}
+ca_county_fires <- st_join(ca_fires_clean, ca_counties_clean) %>% 
+  rename(county_name = name)
+```
+
+## Fonts and color palette
+```{r}
+#..........................import fonts..........................
+font_add_google(name = "Quicksand", family = "Quicksand")
+
+#................enable {showtext} for rendering.................
+showtext_auto()
+
+fire_pal <- c("#FE4A49",
+              "#FF7944",
+              "#F7F3E3",
+              "#C0D6E9",
+              "#5791C4")
+```
+
+
+# Plot 1: Bar plot of largest fire each year 1980-2022
+
+```{r, warning=FALSE, message=FALSE}
+# select largest fires each year
+ca_largest_fires <- ca_fires_clean %>% 
+  st_drop_geometry() %>% 
+  # select years 1980-2022
+  filter(year %in% (1980:2022)) %>% 
+  # Majority of biscuit fire burned in Oregon so removing it
+  filter(fire_name != "BISCUIT") %>% 
+  group_by(year) %>% 
+  # select largest (by acres) for each year
+  slice_max(order_by = gis_acres, n = 1)
+
+red <- "#FE4A49"
+
+# create plot
+ggplot(data = ca_largest_fires) +
+  # add horizontal line at the average size of the largest fire from 1908-2022
+  geom_hline(yintercept = mean(ca_largest_fires$gis_acres),
+             color = "white",
+             linetype = "dashed") +
+  # add columns indicating how large each fire was
+  geom_col(aes(x = year, y = gis_acres), fill = red) +
+  gghighlight(year %in% c(2018, 2020, 2021)) +
+  labs(y = "Total Acres Burned",
+       x = "",
+       title = "Largest Recorded California Wildfires (1980-2022)",
+       subtitle = "The top 3 largest wildfires have burned in the last 6 years") +
+  # choose x axis labels
+  scale_x_discrete(breaks = c(1980, 1985, 1990, 1995, 2000, 2005, 2010, 2015, 2020)) +
+  # add commas to large numbers on y-axis
+  scale_y_continuous(labels = scales::label_comma(),
+                     expand = c(0,0),
+                     limits = c(0, 1100000)) +
+  # add annotation to label the average line
+  annotate(
+    geom = "text",
+    # coord for text to live
+    x = 1, y = 280000,
+    label = "Size of average largest fire in the last 40 years",
+    size = 5,
+    family = "Quicksand",
+    color = "white",
+    # so it doesn't run off plot space
+    hjust = "inward"
+  ) +
+  # add arrow from annotation to average line
+  annotate(
+    geom = "curve",
+    x = 11.5, xend = 14,
+    y = 235000, yend = 160000,
+    curvature = -0.15,
+    arrow = arrow(length = unit(0.3, "cm")),
+    linewidth = 1,
+    color = "white"
+  ) +
+  # label Ranch Fire
+  annotate(
+    geom = "text",
+    x = 30, y = 430000,
+    label = "Ranch Fire\n(410,203 acres)",
+    color = red,
+    size = 5,
+    family = "Quicksand"
+  ) +
+  # add arrow to Ranch Fire annotation
+  annotate(
+    geom = "curve",
+    x = 33, xend = 38,
+    y = 440000, yend = 375000,
+    curvature = 0.1,
+    arrow = arrow(length = unit(0.3, "cm")),
+    color = red,
+    linewidth = 1
+  ) +
+  # label August Complex Fire
+  annotate(
+    geom = "text",
+    x = 35, y = 800000,
+    label= "August Complex Fire\n(1,032,699 acres)",
+    color = red,
+    size = 5,
+    family = "Quicksand"
+  ) +
+  # add arrow to August Complex Fire annotation
+   annotate(
+    geom = "curve",
+    x = 36, xend = 40,
+    y = 750000, yend = 700000,
+    curvature = 0.5,
+    arrow = arrow(length = unit(0.3, "cm")),
+    color = red,
+    linewidth = 1
+  ) +
+  # label Dixie Fire
+  annotate(
+    geom = "text",
+    x = 36, y = 1000000,
+    label= "Dixie Fire\n(963,405 acres)",
+    color = red,
+    size = 5,
+    family = "Quicksand"
+  ) +
+  # add arrow to Dixie Fire annotation
+  annotate(
+    geom = "curve",
+    x = 38.5, xend = 42,
+    y = 1050000, yend = 964000,
+    curvature = -0.7,
+    arrow = arrow(length = unit(0.3, "cm")),
+    color = red,
+    linewidth = 1
+  ) +
+  #theme_bw() +
+  theme(panel.grid.major.x = element_blank(),
+        panel.grid.minor.y = element_blank(),
+        panel.grid.major.y = element_line(linewidth = 0.25),
+        plot.title = element_text(size = 18,face = "bold", 
+                                  margin = margin(t = 0, r = 0, b = 0.25, l = 0, unit= "cm"),
+                                  hjust = 0),
+        plot.subtitle = element_text(size = 15,
+                                     hjust = 0),
+        plot.background = element_rect(fill = "black"),
+        panel.background = element_rect(fill = "black"),
+        panel.border = element_blank(),
+        text = element_text(color = "white", family = "Quicksand"),
+        axis.title = element_text(size = 14),
+        axis.text = element_text(color = "white", size = 12),
+        axis.ticks.x = element_line(color = "white"),
+        axis.line.x = element_line(color = "white"))
+
+ggsave("largest_fires.png", plot = last_plot(),
+       width = 12, height = 8)
+```
+
+# plot 2: california map of change in number of fires
+
+```{r}
+# count number of fires occurring in each county 1980s
+county_counts_80 <- ca_county_fires %>% 
+  st_drop_geometry() %>% 
+  filter(year %in% c(1980:1989)) %>% 
+ group_by(county_name, year) %>% 
+  summarize(sum_80 = n()) %>% 
+  group_by(county_name) %>% 
+  summarize(avg_num_80 = round(mean(sum_80, na.rm = TRUE), 2)) %>% 
+  rename(name = county_name)
+
+county_counts_10 <- ca_county_fires %>% 
+  st_drop_geometry() %>% 
+  filter(year %in% c(2010:2019)) %>% 
+  group_by(county_name, year) %>% 
+  summarize(sum_10 = n()) %>% 
+  group_by(county_name) %>% 
+  summarize(avg_num_10 = round(mean(sum_10, na.rm = TRUE), 2)) %>% 
+  rename(name = county_name)
+
+county_counts <- full_join(county_counts_10, county_counts_80)
+county_change <- county_counts %>% 
+  mutate(change = avg_num_10 - avg_num_80)
+
+# add fire counts to county dataset
+ca_counties_clean_no_island <- ca_counties_clean %>% ms_filter_islands(min_area = 1e13)
+ca_counties_counts <- full_join(ca_counties_clean_no_island, county_change)
+
+
+              #"#AB9DCB",
+              #"#340251")
+              # "#5791C4",
+              # "#054A91")
+
+map_change <- ggplot() +
+  geom_sf(data = ca_counties_counts, 
+          aes(fill = change),
+          color = "black") +
+  # scale_fill_gradient2(low = "blue", mid = "white", high = "#FE4A49") +
+  scale_fill_gradientn(colors = rev(fire_pal),
+                         #c("blue", "orange", "#FE4A49"),
+                       na.value = "grey70",
+                       values = scales::rescale(x = c(
+                         min(na.omit(ca_counties_counts)$change),
+                         0,
+                         max(na.omit(ca_counties_counts)$change)
+                       ))) +
+  labs(title = str_wrap("Change in the Number of Wildfires Affecting California Counties", 50),
+       subtitle = str_wrap("The difference between the average number of wildfires in the 2010s and the 1980s, per county, where a negative value indicates a decrease in fires over time and a positive value indicates an increase in fires over time.", 60),
+       fill = "") +
+  theme_void() +
+  guides(fill = guide_colorbar(barwidth = 20, barheight = 0.75)) +
+  theme(legend.position = "bottom", # c(0.67, 0.78)
+        plot.title = element_text(family = "Quicksand", face = "bold", size = 18,
+                                   margin = margin(t = 0.25, r = 0, b = 0.25, l = 0, unit = "cm"),
+                                  hjust = 0.5),
+        plot.subtitle = element_text(family = "Quicksand", size = 15, hjust = 0.5),
+        plot.background = element_rect(fill = "black"),
+        legend.title = element_text(color = "white"),
+        legend.text = element_text(color = "white", family = "Quicksand", size = 12),
+        text = element_text(color = "white"))
+
+map_change
+
+ggsave("ca_diff.png", plot = map_change,
+       width = 6, height = 9.02)
+```
+
+## Plot 3: sun plot
+
+```{r}
+# create table with total acres burned each month from 1980-2022
+calendar <- ca_fires_clean %>% 
+  # drop geometries
+  st_drop_geometry() %>% 
+  # convert year to date
+  mutate(year = as.Date(year, format = "%Y")) %>% 
+  mutate(year = year(year)) %>%
+  # select 1980-2022
+  filter(year %in% c(1980:2022)) %>% 
+  # grab month out of fire alarm date
+  mutate(month = month(alarm_date)) %>%
+  group_by(year, month) %>%  
+  # calculate total acres burned each month of each year
+  summarise(monthly_total = sum(gis_acres)) %>%  
+  ungroup()
+
+# duplicate january for the circular plot
+month13 <- calendar %>%  
+  filter(month == 1) %>%  
+  mutate(year = (year - 1),
+         month = 13)
+
+# designate where month labels will go
+dates_axis <- tibble(x = seq(1,12,1),
+                     y = c(rep(3000000,12)),
+                     mth = lubridate::month(seq(1,12,1), abbr=TRUE, label = TRUE))
+
+# create plot
+monthly <- calendar %>%   
+  bind_rows(month13) %>% 
+  bind_rows(month13) %>%   # https://stackoverflow.com/questions/66821598/why-is-ggplot-geom-ribbon-area-failing-with-facets-coord-polar-with-specific
+  arrange(desc(year)) %>% 
+  ggplot(aes(month, monthly_total, group = year, fill = year, alpha = 2040-year))+
+  # area plot of total acres burned monthly
+  geom_area(position="identity", alpha = 0.1) +
+  # outline area plot
+  geom_line(aes(color = year), linewidth = 0.1, alpha = 1) +
+  # add month labels
+  geom_text(data=dates_axis, aes(x = x, y = y, label = mth), color ="white", inherit.aes = FALSE, size = 4) +
+  # polar coordinates for circle
+  coord_polar(start = pi) +
+  # choose color gradient
+  scale_fill_gradient(low = "yellow", high = "#FE4A49")+
+  scale_color_gradient(low = "yellow", high = "#FE4A49")+
+  scale_y_continuous(limits = c(0,3000000), expand = expansion(mult = c(0.3, 0))) +
+  scale_x_continuous(breaks = seq(1,12,1), limits = c(1,13), labels = lubridate::month(seq(1,12,1), abbr=TRUE, label = TRUE))+
+  # remove axes, etc.
+  theme_void()+
+  guides(color = "none", alpha = "none",
+         fill = guide_colorbar(barwidth = 25, barheight = 0.75)) +
+  labs(title = "Monthly acres burned by wildfires (1980-2022)",
+       fill = "") +
+  theme(legend.direction = "horizontal",
+        legend.position = "top",
+        text = element_text(color = "white", family = "Quicksand"),
+       plot.title = element_text(face = "bold", hjust = 0.5,
+                                 margin = margin(t = 0.25, r = 0, b = 0.5, l = 0, unit = "cm")),
+        panel.background = element_rect(fill = "black"),
+        plot.background = element_rect(fill = "black")) +
+  annotate(
+    geom = "text",
+    x = 8, y = 2000000,
+    label= "2.9 mil acres\n(Aug 2020)",
+    color = red,
+    size = 2.5, family = "Quicksand")
+monthly
+
+ggsave("sun_plot.png", plot = monthly,
+       height = 8, width = 7.09)
+
+```
+
